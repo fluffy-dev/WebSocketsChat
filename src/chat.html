@@ -1,37 +1,36 @@
 <!-- chat.html -->
-
 <!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <title>Python WebSocket Chat: Rooms</title>
+    <title>Advanced Python WebSocket Chat</title>
     <style>
-        body { font-family: sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 20px; background-color: #f0f2f5; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
         .hidden { display: none !important; }
-        .container { max-width: 600px; width: 100%; background: #fff; border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
-        /* Стили для формы входа */
+        .container { max-width: 600px; width: 100%; background: #fff; border: 1px solid #ddd; border-radius: 8px; box-shadow: 0 4px 12px rgba(0,0,0,0.1); overflow: hidden; }
         #login-form { padding: 40px; text-align: center; }
-        #login-form h2 { margin-top: 0; }
-        #login-form input { display: block; width: 100%; padding: 10px; margin-bottom: 15px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px; }
-        #login-form button { width: 100%; padding: 10px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
-        /* Стили для чата */
-        #chat-container { flex-direction: column; }
-        #messages { height: 400px; overflow-y: scroll; border-bottom: 1px solid #ddd; padding: 10px; }
-        .message { margin-bottom: 8px; padding: 8px 12px; border-radius: 18px; max-width: 75%; word-wrap: break-word; }
-        .message-sent { background-color: #dcf8c6; align-self: flex-end; }
-        .message-received { background-color: #f1f0f0; align-self: flex-start; }
-        .message-system { background-color: #e6f7ff; color: #555; font-style: italic; text-align: center; align-self: center; padding: 5px 10px; border-radius: 10px; font-size: 0.9em; }
-        .message-wrapper { display: flex; flex-direction: column; }
-        #input-area { display: flex; padding: 10px; }
-        #message-input { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
-        #send-button { padding: 10px 15px; margin-left: 10px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+        #login-form h2 { margin-top: 0; color: #1c1e21; }
+        #login-form input { display: block; width: 100%; padding: 12px; margin-bottom: 15px; box-sizing: border-box; border: 1px solid #ccd0d5; border-radius: 6px; font-size: 16px; }
+        #login-form button { width: 100%; padding: 12px; background-color: #1877f2; color: white; border: none; border-radius: 6px; cursor: pointer; font-size: 18px; font-weight: bold; }
+        #chat-container { display: flex; flex-direction: column; height: 80vh; }
+        #messages { flex-grow: 1; overflow-y: scroll; padding: 20px; }
+        .message-wrapper { display: flex; margin-bottom: 12px; }
+        .message { padding: 10px 15px; border-radius: 18px; max-width: 75%; word-wrap: break-word; line-height: 1.4; }
+        .message strong { display: block; margin-bottom: 4px; font-size: 0.9em; color: #65676b; }
+        .sent { background-color: #0084ff; color: white; margin-left: auto; }
+        .sent strong { color: rgba(255, 255, 255, 0.8); }
+        .received { background-color: #e4e6eb; color: #050505; }
+        .system { width: 100%; text-align: center; color: #65676b; font-size: 0.9em; margin-bottom: 12px; }
+        #input-area { display: flex; padding: 10px; border-top: 1px solid #ddd; align-items: center; }
+        #message-input { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 18px; background-color: #f0f2f5; border: none; outline: none; font-size: 15px; }
+        #send-button { padding: 0; margin-left: 10px; background-color: #1877f2; color: white; border: none; border-radius: 50%; cursor: pointer; font-size: 24px; width: 40px; height: 40px; line-height: 40px; text-align: center; flex-shrink: 0; }
     </style>
 </head>
 <body>
 
     <div class="container" id="login-container">
         <form id="login-form">
-            <h2>Войти в чат</h2>
+            <h2>Вход в чат</h2>
             <input type="text" id="room-input" placeholder="Название комнаты" required>
             <input type="text" id="username-input" placeholder="Ваш никнейм" required>
             <button type="submit">Войти</button>
@@ -39,10 +38,10 @@
     </div>
 
     <div class="container hidden" id="chat-container">
-        <div id="messages" class="message-wrapper"></div>
+        <div id="messages"></div>
         <div id="input-area">
-            <input type="text" id="message-input" placeholder="Введите сообщение...">
-            <button id="send-button">Отправить</button>
+            <input type="text" id="message-input" placeholder="Сообщение...">
+            <button id="send-button" title="Отправить">➤</button>
         </div>
     </div>
 
@@ -50,8 +49,6 @@
         const loginContainer = document.getElementById('login-container');
         const chatContainer = document.getElementById('chat-container');
         const loginForm = document.getElementById('login-form');
-        const roomInput = document.getElementById('room-input');
-        const usernameInput = document.getElementById('username-input');
 
         const messagesDiv = document.getElementById('messages');
         const messageInput = document.getElementById('message-input');
@@ -62,8 +59,8 @@
 
         loginForm.addEventListener('submit', (e) => {
             e.preventDefault();
-            const roomName = roomInput.value.trim();
-            myUsername = usernameInput.value.trim();
+            const roomName = document.getElementById('room-input').value.trim();
+            myUsername = document.getElementById('username-input').value.trim();
 
             if (roomName && myUsername) {
                 connectToChat(roomName, myUsername);
@@ -74,85 +71,82 @@
             websocket = new WebSocket("ws://localhost:8765");
 
             websocket.onopen = () => {
-                console.log("Соединение установлено. Отправляем данные для входа...");
                 const joinMessage = {
-                    type: "join",
-                    payload: {
-                        room: roomName,
-                        username: username
-                    }
+                    type: "join_room",
+                    payload: { room_name: roomName, username: username }
                 };
                 websocket.send(JSON.stringify(joinMessage));
-
-                // Показываем чат, скрываем форму входа
-                loginContainer.classList.add('hidden');
-                chatContainer.classList.remove('hidden');
-                chatContainer.style.display = 'flex'; // Восстанавливаем display flex
             };
 
             websocket.onmessage = (event) => {
-                const data = JSON.parse(event.data);
-                console.log("Получено сообщение от сервера:", data);
-
-                switch (data.type) {
-                    case 'chat_message':
-                        addChatMessage(data.payload.username, data.payload.message);
-                        break;
-                    case 'user_joined':
-                        addSystemMessage(`Пользователь '${data.payload.username}' присоединился к комнате.`);
-                        break;
-                    case 'user_left':
-                        addSystemMessage(`Пользователь '${data.payload.username}' покинул комнату.`);
-                        break;
-                    default:
-                        console.warn("Получен неизвестный тип сообщения:", data.type);
-                }
+                const serverMessage = JSON.parse(event.data);
+                handleServerMessage(serverMessage);
             };
 
-            websocket.onclose = () => {
-                console.log("Соединение закрыто.");
-                addSystemMessage("Вы были отключены от сервера. Пожалуйста, обновите страницу.");
-            };
+            websocket.onclose = () => addSystemMessage("Соединение потеряно. Пожалуйста, обновите страницу.");
+            websocket.onerror = () => addSystemMessage("Произошла ошибка соединения.");
+        }
 
-            websocket.onerror = (error) => {
-                console.error("Ошибка WebSocket:", error);
-                addSystemMessage("Произошла ошибка соединения.");
-            };
+        function handleServerMessage(message) {
+            const { type, payload } = message;
+            switch (type) {
+                case 'user_joined':
+                    // Если присоединился другой пользователь, или это мы сами, и чат еще скрыт
+                    if (payload.username === myUsername && chatContainer.classList.contains('hidden')) {
+                        loginContainer.classList.add('hidden');
+                        chatContainer.classList.remove('hidden');
+                    } else {
+                        addSystemMessage(`'${payload.username}' присоединился к чату.`);
+                    }
+                    break;
+                case 'user_left':
+                    addSystemMessage(`'${payload.username}' покинул чат.`);
+                    break;
+                case 'chat_message':
+                    addChatMessage(payload.username, payload.message_text);
+                    break;
+                case 'error':
+                    alert(`Ошибка от сервера: ${payload.detail}`);
+                    websocket.close();
+                    break;
+            }
         }
 
         function sendMessage() {
             const messageText = messageInput.value.trim();
             if (messageText === '' || !websocket || websocket.readyState !== WebSocket.OPEN) return;
 
-            const chatMessage = {
-                type: "chat",
-                payload: {
-                    message: messageText
-                }
+            const clientMessage = {
+                type: "chat_message",
+                payload: { message_text: messageText }
             };
-            websocket.send(JSON.stringify(chatMessage));
-            // Немедленно отображаем собственное сообщение
-            addChatMessage(myUsername, messageText);
+            websocket.send(JSON.stringify(clientMessage));
             messageInput.value = '';
         }
 
-        function addChatMessage(username, message) {
-            const messageElement = document.createElement('div');
-            messageElement.innerHTML = `<strong>${username}:</strong> ${message}`;
+        function createMessageElement(innerHtml, typeClass) {
+            const wrapper = document.createElement('div');
+            wrapper.className = 'message-wrapper';
+            const el = document.createElement('div');
+            el.className = `message ${typeClass}`;
+            el.innerHTML = innerHtml;
+            wrapper.appendChild(el);
+            return wrapper;
+        }
 
-            // Определяем, отправили ли мы это сообщение
-            const messageType = (username === myUsername) ? 'sent' : 'received';
-            messageElement.classList.add('message', `message-${messageType}`);
-
+        function addChatMessage(username, text) {
+            const type = (username === myUsername) ? 'sent' : 'received';
+            const content = (type === 'sent') ? text : `<strong>${username}</strong> ${text}`;
+            const messageElement = createMessageElement(content, type);
             messagesDiv.appendChild(messageElement);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
-        function addSystemMessage(message) {
-            const messageElement = document.createElement('div');
-            messageElement.textContent = message;
-            messageElement.classList.add('message', 'message-system');
-            messagesDiv.appendChild(messageElement);
+        function addSystemMessage(text) {
+            const el = document.createElement('div');
+            el.className = 'system';
+            el.textContent = text;
+            messagesDiv.appendChild(el);
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
