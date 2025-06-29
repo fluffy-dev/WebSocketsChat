@@ -1,5 +1,3 @@
-# server.py
-
 import asyncio
 import websockets
 import json
