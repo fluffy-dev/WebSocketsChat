@@ -1,0 +1,167 @@
+<!-- chat.html -->
+
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <title>Python WebSocket Chat: Rooms</title>
+    <style>
+        body { font-family: sans-serif; margin: 0; padding: 20px; background-color: #f4f4f4; display: flex; justify-content: center; align-items: center; min-height: 100vh; }
+        .hidden { display: none !important; }
+        .container { max-width: 600px; width: 100%; background: #fff; border: 1px solid #ddd; box-shadow: 0 2px 5px rgba(0,0,0,0.1); }
+        /* Стили для формы входа */
+        #login-form { padding: 40px; text-align: center; }
+        #login-form h2 { margin-top: 0; }
+        #login-form input { display: block; width: 100%; padding: 10px; margin-bottom: 15px; box-sizing: border-box; border: 1px solid #ccc; border-radius: 5px; }
+        #login-form button { width: 100%; padding: 10px; background-color: #28a745; color: white; border: none; border-radius: 5px; cursor: pointer; font-size: 16px; }
+        /* Стили для чата */
+        #chat-container { flex-direction: column; }
+        #messages { height: 400px; overflow-y: scroll; border-bottom: 1px solid #ddd; padding: 10px; }
+        .message { margin-bottom: 8px; padding: 8px 12px; border-radius: 18px; max-width: 75%; word-wrap: break-word; }
+        .message-sent { background-color: #dcf8c6; align-self: flex-end; }
+        .message-received { background-color: #f1f0f0; align-self: flex-start; }
+        .message-system { background-color: #e6f7ff; color: #555; font-style: italic; text-align: center; align-self: center; padding: 5px 10px; border-radius: 10px; font-size: 0.9em; }
+        .message-wrapper { display: flex; flex-direction: column; }
+        #input-area { display: flex; padding: 10px; }
+        #message-input { flex-grow: 1; padding: 10px; border: 1px solid #ccc; border-radius: 5px; }
+        #send-button { padding: 10px 15px; margin-left: 10px; background-color: #007bff; color: white; border: none; border-radius: 5px; cursor: pointer; }
+    </style>
+</head>
+<body>
+
+    <div class="container" id="login-container">
+        <form id="login-form">
+            <h2>Войти в чат</h2>
+            <input type="text" id="room-input" placeholder="Название комнаты" required>
+            <input type="text" id="username-input" placeholder="Ваш никнейм" required>
+            <button type="submit">Войти</button>
+        </form>
+    </div>
+
+    <div class="container hidden" id="chat-container">
+        <div id="messages" class="message-wrapper"></div>
+        <div id="input-area">
+            <input type="text" id="message-input" placeholder="Введите сообщение...">
+            <button id="send-button">Отправить</button>
+        </div>
+    </div>
+
+    <script>
+        const loginContainer = document.getElementById('login-container');
+        const chatContainer = document.getElementById('chat-container');
+        const loginForm = document.getElementById('login-form');
+        const roomInput = document.getElementById('room-input');
+        const usernameInput = document.getElementById('username-input');
+
+        const messagesDiv = document.getElementById('messages');
+        const messageInput = document.getElementById('message-input');
+        const sendButton = document.getElementById('send-button');
+
+        let websocket;
+        let myUsername;
+
+        loginForm.addEventListener('submit', (e) => {
+            e.preventDefault();
+            const roomName = roomInput.value.trim();
+            myUsername = usernameInput.value.trim();
+
+            if (roomName && myUsername) {
+                connectToChat(roomName, myUsername);
+            }
+        });
+
+        function connectToChat(roomName, username) {
+            websocket = new WebSocket("ws://localhost:8765");
+
+            websocket.onopen = () => {
+                console.log("Соединение установлено. Отправляем данные для входа...");
+                const joinMessage = {
+                    type: "join",
+                    payload: {
+                        room: roomName,
+                        username: username
+                    }
+                };
+                websocket.send(JSON.stringify(joinMessage));
+
+                // Показываем чат, скрываем форму входа
+                loginContainer.classList.add('hidden');
+                chatContainer.classList.remove('hidden');
+                chatContainer.style.display = 'flex'; // Восстанавливаем display flex
+            };
+
+            websocket.onmessage = (event) => {
+                const data = JSON.parse(event.data);
+                console.log("Получено сообщение от сервера:", data);
+
+                switch (data.type) {
+                    case 'chat_message':
+                        addChatMessage(data.payload.username, data.payload.message);
+                        break;
+                    case 'user_joined':
+                        addSystemMessage(`Пользователь '${data.payload.username}' присоединился к комнате.`);
+                        break;
+                    case 'user_left':
+                        addSystemMessage(`Пользователь '${data.payload.username}' покинул комнату.`);
+                        break;
+                    default:
+                        console.warn("Получен неизвестный тип сообщения:", data.type);
+                }
+            };
+
+            websocket.onclose = () => {
+                console.log("Соединение закрыто.");
+                addSystemMessage("Вы были отключены от сервера. Пожалуйста, обновите страницу.");
+            };
+
+            websocket.onerror = (error) => {
+                console.error("Ошибка WebSocket:", error);
+                addSystemMessage("Произошла ошибка соединения.");
+            };
+        }
+
+        function sendMessage() {
+            const messageText = messageInput.value.trim();
+            if (messageText === '' || !websocket || websocket.readyState !== WebSocket.OPEN) return;
+
+            const chatMessage = {
+                type: "chat",
+                payload: {
+                    message: messageText
+                }
+            };
+            websocket.send(JSON.stringify(chatMessage));
+            // Немедленно отображаем собственное сообщение
+            addChatMessage(myUsername, messageText);
+            messageInput.value = '';
+        }
+
+        function addChatMessage(username, message) {
+            const messageElement = document.createElement('div');
+            messageElement.innerHTML = `<strong>${username}:</strong> ${message}`;
+
+            // Определяем, отправили ли мы это сообщение
+            const messageType = (username === myUsername) ? 'sent' : 'received';
+            messageElement.classList.add('message', `message-${messageType}`);
+
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        function addSystemMessage(message) {
+            const messageElement = document.createElement('div');
+            messageElement.textContent = message;
+            messageElement.classList.add('message', 'message-system');
+            messagesDiv.appendChild(messageElement);
+            messagesDiv.scrollTop = messagesDiv.scrollHeight;
+        }
+
+        sendButton.addEventListener('click', sendMessage);
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    </script>
+</body>
+</html>
